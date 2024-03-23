@@ -1,39 +1,32 @@
-# Define function to randomly flip images
-def random_flipped_img(images, labels, num_flips):
-    random_choice = np.random.choice(len(images), num_flips, replace=False)
-    flipped_images = []
-    flipped_labels = []
-    for i, (img,label) in enumerate(zip(images,labels)):
-        if i in random_choice:
-            flipped_img = np.flip(img, axis=0)
-            flipped_images.append(flipped_img)
-            flipped_labels.append(1) # 1 for flip
-        else:
-            flipped_images.append(img)
-            flipped_labels.append(0) # 0 for not flip
-    return flipped_images, flipped_labels
+import torch
+from torchvision import datasets, transforms
+import matplotlib.pyplot as plt
+import random
 
-# Load Fashion MNIST dataset
-fashion_mnist = tf.keras.datasets.fashion_mnist
-(train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data()
+# Tải dữ liệu STL-10
+stl10 = datasets.STL10(
+    root='./data',
+    download=True,
+    transform=transforms.Compose([
+        transforms.RandomVerticalFlip(),
+        transforms.ToTensor(),
+    ])
+)
 
-# Select n images to flip
-num_flips = 3
-new_images, new_labels = random_flipped_img(train_images[:10], train_labels[:10], num_flips)
+# Lấy số lượng mẫu trong tập dữ liệu STL-10
+num_samples = len(stl10)
 
-plt.figure(figsize=(20, 4))
-for i, img in enumerate(train_images[:10]):
-    plt.subplot(1, 10, i + 1)
-    plt.imshow(img, cmap='gray')
+# Chọn ngẫu nhiên 10 mẫu dữ liệu (hoặc ít hơn nếu tập dữ liệu có ít hơn 10 mẫu)
+random_indices = random.sample(range(num_samples), min(10, num_samples))
+
+# Hiển thị ảnh tương ứng với các chỉ số ngẫu nhiên đã chọn
+for i, idx in enumerate(random_indices):
+    image, label = stl10[idx]
+
+    # Chuyển tensor image về numpy array và hiển thị hình ảnh
+    plt.subplot(2, 5, i + 1)
+    plt.imshow(image.permute(1, 2, 0))
+    plt.title(f"Sample {i + 1}")
     plt.axis('off')
-    plt.title(f'Label: {int(train_labels[i])}')
-plt.figure(figsize=(20, 4))
-for i, (img, label) in enumerate(zip(new_images,new_labels)):
-    plt.subplot(1, 10, i + 1)
-    plt.imshow(img, cmap='gray')
-    plt.axis('off')
-    plt.title(f'Label: {int(label)}')
-    
-    
 
 plt.show()
