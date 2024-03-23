@@ -1,32 +1,56 @@
-import torch
-from torchvision import datasets, transforms
-import matplotlib.pyplot as plt
-import random
 
-# Tải dữ liệu STL-10
-stl10 = datasets.STL10(
-    root='./data',
-    download=True,
-    transform=transforms.Compose([
-        transforms.RandomVerticalFlip(),
-        transforms.ToTensor(),
-    ])
-)
+def random_flipped_img(images, labels, flip_ratio):
+    num_flips = int(len(images) * flip_ratio)
+    random_choice = np.random.choice(len(images), num_flips, replace=False)
+    flipped_images = []
+    flipped_labels = []
+    for i, (img,label) in enumerate(zip(images,labels)):
+        if i in random_choice:
+            flipped_img = np.flip(img, axis=0)
+            flipped_images.append(flipped_img)
+            flipped_labels.append(1) # 1 for flip
+        else:
+            flipped_images.append(img)
+            flipped_labels.append(0) # 0 for not flip
+    return flipped_images, flipped_labels
 
-# Lấy số lượng mẫu trong tập dữ liệu STL-10
-num_samples = len(stl10)
+# Load STL-10 dataset
+stl10_dataset, info = tfds.load('stl10', split='train', with_info=True)
 
-# Chọn ngẫu nhiên 10 mẫu dữ liệu (hoặc ít hơn nếu tập dữ liệu có ít hơn 10 mẫu)
-random_indices = random.sample(range(num_samples), min(10, num_samples))
+# Extract images and labels
+images = []
+labels = []
+for example in tfds.as_numpy(stl10_dataset):
+    images.append(example['image'])
+    labels.append(example['label'])
 
-# Hiển thị ảnh tương ứng với các chỉ số ngẫu nhiên đã chọn
-for i, idx in enumerate(random_indices):
-    image, label = stl10[idx]
+# Convert lists to numpy arrays
+images = np.array(images)
+labels = np.array(labels)
 
-    # Chuyển tensor image về numpy array và hiển thị hình ảnh
-    plt.subplot(2, 5, i + 1)
-    plt.imshow(image.permute(1, 2, 0))
-    plt.title(f"Sample {i + 1}")
+# Select random 10 images from the dataset
+random_indices = np.random.choice(len(images), 10, replace=False)
+selected_images = images[random_indices]
+selected_labels = labels[random_indices]
+
+# Apply flipping with 50% probability
+flip_ratio = 0.5  # 50% flip ratio
+new_images, new_labels = random_flipped_img(selected_images, selected_labels, flip_ratio)
+
+# Plot original images
+plt.figure(figsize=(20, 4))
+for i, img in enumerate(selected_images):
+    plt.subplot(1, 10, i + 1)
+    plt.imshow(img)
     plt.axis('off')
+    plt.title(f'Label: {int(selected_labels[i])}')
+
+# Plot flipped images
+plt.figure(figsize=(20, 4))
+for i, (img, label) in enumerate(zip(new_images,new_labels)):
+    plt.subplot(1, 10, i + 1)
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title(f'Label: {int(label)}')
 
 plt.show()
