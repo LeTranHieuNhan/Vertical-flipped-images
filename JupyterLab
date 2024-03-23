@@ -1,52 +1,155 @@
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score
-from skimage import io
-from skimage.transform import rotate
+import tensorflow as tf
+import tensorflow_datasets as tfds
+import matplotlib.pyplot as plt
+
+import tensorflow as tf
+import tensorflow_datasets as tfds
+import numpy as np
+import matplotlib.pyplot as plt
+
+def random_flipped_img(images, labels, flip_ratio):
+    num_flips = int(len(images) * flip_ratio)
+    random_choice = np.random.choice(len(images), num_flips, replace=False)
+    flipped_images = []
+    flipped_labels = []
+    for i, (img,label) in enumerate(zip(images,labels)):
+        if i in random_choice:
+            flipped_img = np.flip(img, axis=0)
+            flipped_images.append(flipped_img)
+            flipped_labels.append(1) # 1 for flip
+        else:
+            flipped_images.append(img)
+            flipped_labels.append(0) # 0 for not flip
+    return flipped_images, flipped_labels
 
 # Load STL-10 dataset
-def load_stl10_dataset():
-    X = []
-    y = []
+stl10_dataset, info = tfds.load('stl10', split=['train', 'test'], with_info=True)
 
-    # Load train images
-    for i in range(1, 11):
-        images = io.imread_collection(f'./data/stl10_binary/train_X_part{i}.bin')
-        labels = np.fromfile(f'./data/stl10_binary/train_y_part{i}.bin', dtype=np.uint8)
-        X.extend(images)
-        y.extend(labels)
+# Extract images and labels
+train_images = []
+train_labels = []
+test_images = []
+test_labels = []
 
-    # Load test images
-    test_images = io.imread_collection('./data/stl10_binary/test_X.bin')
-    test_labels = np.fromfile('./data/stl10_binary/test_y.bin', dtype=np.uint8)
+# Load train images and labels
+for example in tfds.as_numpy(stl10_dataset[0]):
+    train_images.append(example['image'])
+    train_labels.append(example['label'])
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    return np.array(X_train), np.array(X_test), np.array(y_train), np.array(y_test)
+# Load test images and labels
+for example in tfds.as_numpy(stl10_dataset[1]):
+    test_images.append(example['image'])
+    test_labels.append(example['label'])
 
-# Preprocess data (flip images vertically)
-def preprocess_data(X):
-    flipped_X = [np.flipud(x) for x in X]
-    X_preprocessed = np.concatenate((X, flipped_X))
-    y_preprocessed = np.concatenate((np.zeros(len(X)), np.ones(len(flipped_X))))
-    return X_preprocessed, y_preprocessed
+# Convert lists to numpy arrays
+train_images = np.array(train_images)
+train_labels = np.array(train_labels)
+test_images = np.array(test_images)
+test_labels = np.array(test_labels)
 
-# Load and preprocess dataset
-X_train, X_test, y_train, y_test = load_stl10_dataset()
-X_train, y_train = preprocess_data(X_train)
-X_test, y_test = preprocess_data(X_test)
+# Select random 10 images from the train set
+random_indices_train = np.random.choice(len(train_images), 10, replace=False)
+selected_train_images = train_images[random_indices_train]
+selected_train_labels = train_labels[random_indices_train]
 
-# Flatten images
-X_train = X_train.reshape(len(X_train), -1)
-X_test = X_test.reshape(len(X_test), -1)
+# Apply flipping with 50% probability to the selected train images
+flip_ratio = 0.5  # 50% flip ratio
+flipped_train_images, flipped_train_labels = random_flipped_img(selected_train_images, selected_train_labels, flip_ratio)
 
-# Train SVM model
-svm_model = SVC(kernel='linear')
-svm_model.fit(X_train, y_train)
+# Select random 10 images from the test set
+random_indices_test = np.random.choice(len(test_images), 10, replace=False)
+selected_test_images = test_images[random_indices_test]
+selected_test_labels = test_labels[random_indices_test]
 
-# Predict on test set
-y_pred = svm_model.predict(X_test)
+# Apply flipping with 50% probability to the selected test images
+flipped_test_images, flipped_test_labels = random_flipped_img(selected_test_images, selected_test_labels, flip_ratio)
 
-# Calculate accuracy
-accuracy = accuracy_score(y_test, y_pred)
-print("Accuracy:", accuracy)
+# Plot original train images
+plt.figure(figsize=(20, 4))
+for i, img in enumerate(selected_train_images):
+    plt.subplot(1, 10, i + 1)
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title(f'Label: {int(selected_train_labels[i])}')
+
+# Plot flipped train images
+plt.figure(figsize=(20, 4))
+for i, (img, label) in enumerate(zip(flipped_train_images, flipped_train_labels)):
+    plt.subplot(1, 10, i + 1)
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title(f'Label: {int(label)}')
+
+# Plot original test images
+plt.figure(figsize=(20, 4))
+for i, img in enumerate(selected_test_images):
+    plt.subplot(1, 10, i + 1)
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title(f'Label: {int(selected_test_labels[i])}')
+
+# Plot flipped test images
+plt.figure(figsize=(20, 4))
+for i, (img, label) in enumerate(zip(flipped_test_images, flipped_test_labels)):
+    plt.subplot(1, 10, i + 1)
+    plt.imshow(img)
+    plt.axis('off')
+    plt.title(f'Label: {int(label)}')
+
+plt.show()
+
+
+def resize_images(images):
+    resized_images = tf.image.resize(images, (28, 28))
+    return resized_images
+
+# Your code for loading data, flipping images, and extracting labels remains the same
+
+# Convert to numpy arrays and normalize
+train_images = np.array(flipped_train_images) / 255.0
+train_labels = np.array(flipped_train_labels)
+test_images = np.array(flipped_test_images) / 255.0
+test_labels = np.array(flipped_test_labels)
+
+# Resize images
+train_images_resized = resize_images(train_images)
+test_images_resized = resize_images(test_images)
+
+# Define model
+model = tf.keras.Sequential([
+    tf.keras.Input(shape=(28, 28, 3)),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dense(10, activation='softmax')
+])
+
+# Compile model
+model.compile(optimizer='adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Train model
+history = model.fit(
+    train_images_resized,
+    train_labels,
+    epochs=10,
+    validation_data=(test_images_resized, test_labels)
+)
+
+
+# Make predictions on n test images
+num_images_to_predict = 3
+predicted_labels = []
+
+# Resize test images
+test_images_resized = resize_images(test_images)
+
+for i in range(num_images_to_predict):
+    # Make prediction on a single image
+    prediction = model.predict(np.expand_dims(test_images_resized[i], axis=0))
+    # Get the index of the highest probability prediction
+    predicted_label = np.argmax(prediction)
+    predicted_labels.append(predicted_label)
+
+print("Predicted labels of images:", predicted_labels)
