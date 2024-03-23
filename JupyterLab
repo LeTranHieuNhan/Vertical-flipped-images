@@ -1,52 +1,52 @@
-import tensorflow as tf
-from tensorflow.keras import datasets, layers, models
-from sklearn.model_selection import train_test_split
 import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
+from skimage import io
+from skimage.transform import rotate
 
 # Load STL-10 dataset
-(train_images, train_labels), (test_images, test_labels) = datasets.stl10.load_data()
+def load_stl10_dataset():
+    X = []
+    y = []
 
-# Preprocess data
-train_images = train_images / 255.0
-test_images = test_images / 255.0
+    # Load train images
+    for i in range(1, 11):
+        images = io.imread_collection(f'./data/stl10_binary/train_X_part{i}.bin')
+        labels = np.fromfile(f'./data/stl10_binary/train_y_part{i}.bin', dtype=np.uint8)
+        X.extend(images)
+        y.extend(labels)
 
-# Create labels for vertical flip
-train_labels_flipped = np.ones_like(train_labels)
-test_labels_flipped = np.ones_like(test_labels)
+    # Load test images
+    test_images = io.imread_collection('./data/stl10_binary/test_X.bin')
+    test_labels = np.fromfile('./data/stl10_binary/test_y.bin', dtype=np.uint8)
 
-# Split trainset into trainset and validation set (80-20 ratio)
-train_images, val_images, train_labels, val_labels, train_labels_flipped, val_labels_flipped = train_test_split(
-    train_images, train_labels, train_labels_flipped, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    return np.array(X_train), np.array(X_test), np.array(y_train), np.array(y_test)
 
-# Add a new axis to the labels for vertical flip
-train_labels = tf.expand_dims(train_labels, axis=-1)
-val_labels = tf.expand_dims(val_labels, axis=-1)
-test_labels = tf.expand_dims(test_labels, axis=-1)
-train_labels_flipped = tf.expand_dims(train_labels_flipped, axis=-1)
-val_labels_flipped = tf.expand_dims(val_labels_flipped, axis=-1)
-test_labels_flipped = tf.expand_dims(test_labels_flipped, axis=-1)
+# Preprocess data (flip images vertically)
+def preprocess_data(X):
+    flipped_X = [np.flipud(x) for x in X]
+    X_preprocessed = np.concatenate((X, flipped_X))
+    y_preprocessed = np.concatenate((np.zeros(len(X)), np.ones(len(flipped_X))))
+    return X_preprocessed, y_preprocessed
 
-# Define model architecture
-model = models.Sequential([
-    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(96, 96, 3)),
-    layers.MaxPooling2D((2, 2)),
-    layers.Conv2D(64, (3, 3), activation='relu'),
-    layers.MaxPooling2D((2, 2)),
-    layers.Conv2D(64, (3, 3), activation='relu'),
-    layers.Flatten(),
-    layers.Dense(64, activation='relu'),
-    layers.Dense(2)  # Output layer for binary classification
-])
+# Load and preprocess dataset
+X_train, X_test, y_train, y_test = load_stl10_dataset()
+X_train, y_train = preprocess_data(X_train)
+X_test, y_test = preprocess_data(X_test)
 
-# Compile the model
-model.compile(optimizer='adam',
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
+# Flatten images
+X_train = X_train.reshape(len(X_train), -1)
+X_test = X_test.reshape(len(X_test), -1)
 
-# Train the model
-history = model.fit(train_images, train_labels_flipped, epochs=10, 
-                    validation_data=(val_images, val_labels_flipped))
+# Train SVM model
+svm_model = SVC(kernel='linear')
+svm_model.fit(X_train, y_train)
 
-# Evaluate the model on test set
-test_loss, test_acc = model.evaluate(test_images, test_labels_flipped, verbose=2)
-print('\nTest accuracy:', test_acc)
+# Predict on test set
+y_pred = svm_model.predict(X_test)
+
+# Calculate accuracy
+accuracy = accuracy_score(y_test, y_pred)
+print("Accuracy:", accuracy)
