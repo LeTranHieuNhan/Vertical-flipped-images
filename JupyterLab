@@ -1,56 +1,52 @@
-
-def random_flipped_img(images, labels, flip_ratio):
-    num_flips = int(len(images) * flip_ratio)
-    random_choice = np.random.choice(len(images), num_flips, replace=False)
-    flipped_images = []
-    flipped_labels = []
-    for i, (img,label) in enumerate(zip(images,labels)):
-        if i in random_choice:
-            flipped_img = np.flip(img, axis=0)
-            flipped_images.append(flipped_img)
-            flipped_labels.append(1) # 1 for flip
-        else:
-            flipped_images.append(img)
-            flipped_labels.append(0) # 0 for not flip
-    return flipped_images, flipped_labels
+import tensorflow as tf
+from tensorflow.keras import datasets, layers, models
+from sklearn.model_selection import train_test_split
+import numpy as np
 
 # Load STL-10 dataset
-stl10_dataset, info = tfds.load('stl10', split='train', with_info=True)
+(train_images, train_labels), (test_images, test_labels) = datasets.stl10.load_data()
 
-# Extract images and labels
-images = []
-labels = []
-for example in tfds.as_numpy(stl10_dataset):
-    images.append(example['image'])
-    labels.append(example['label'])
+# Preprocess data
+train_images = train_images / 255.0
+test_images = test_images / 255.0
 
-# Convert lists to numpy arrays
-images = np.array(images)
-labels = np.array(labels)
+# Create labels for vertical flip
+train_labels_flipped = np.ones_like(train_labels)
+test_labels_flipped = np.ones_like(test_labels)
 
-# Select random 10 images from the dataset
-random_indices = np.random.choice(len(images), 10, replace=False)
-selected_images = images[random_indices]
-selected_labels = labels[random_indices]
+# Split trainset into trainset and validation set (80-20 ratio)
+train_images, val_images, train_labels, val_labels, train_labels_flipped, val_labels_flipped = train_test_split(
+    train_images, train_labels, train_labels_flipped, test_size=0.2, random_state=42)
 
-# Apply flipping with 50% probability
-flip_ratio = 0.5  # 50% flip ratio
-new_images, new_labels = random_flipped_img(selected_images, selected_labels, flip_ratio)
+# Add a new axis to the labels for vertical flip
+train_labels = tf.expand_dims(train_labels, axis=-1)
+val_labels = tf.expand_dims(val_labels, axis=-1)
+test_labels = tf.expand_dims(test_labels, axis=-1)
+train_labels_flipped = tf.expand_dims(train_labels_flipped, axis=-1)
+val_labels_flipped = tf.expand_dims(val_labels_flipped, axis=-1)
+test_labels_flipped = tf.expand_dims(test_labels_flipped, axis=-1)
 
-# Plot original images
-plt.figure(figsize=(20, 4))
-for i, img in enumerate(selected_images):
-    plt.subplot(1, 10, i + 1)
-    plt.imshow(img)
-    plt.axis('off')
-    plt.title(f'Label: {int(selected_labels[i])}')
+# Define model architecture
+model = models.Sequential([
+    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(96, 96, 3)),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.Flatten(),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(2)  # Output layer for binary classification
+])
 
-# Plot flipped images
-plt.figure(figsize=(20, 4))
-for i, (img, label) in enumerate(zip(new_images,new_labels)):
-    plt.subplot(1, 10, i + 1)
-    plt.imshow(img)
-    plt.axis('off')
-    plt.title(f'Label: {int(label)}')
+# Compile the model
+model.compile(optimizer='adam',
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=['accuracy'])
 
-plt.show()
+# Train the model
+history = model.fit(train_images, train_labels_flipped, epochs=10, 
+                    validation_data=(val_images, val_labels_flipped))
+
+# Evaluate the model on test set
+test_loss, test_acc = model.evaluate(test_images, test_labels_flipped, verbose=2)
+print('\nTest accuracy:', test_acc)
