@@ -3,11 +3,6 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import matplotlib.pyplot as plt
 
-import tensorflow as tf
-import tensorflow_datasets as tfds
-import numpy as np
-import matplotlib.pyplot as plt
-
 def random_flipped_img(images, labels, flip_ratio):
     num_flips = int(len(images) * flip_ratio)
     random_choice = np.random.choice(len(images), num_flips, replace=False)
@@ -47,9 +42,12 @@ train_images = np.array(train_images)
 train_labels = np.array(train_labels)
 test_images = np.array(test_images)
 test_labels = np.array(test_labels)
+# Amount of Train and Test
+train_num = 80
+test_num = 20
 
 # Select random 10 images from the train set
-random_indices_train = np.random.choice(len(train_images), 10, replace=False)
+random_indices_train = np.random.choice(len(train_images), train_num, replace=False)
 selected_train_images = train_images[random_indices_train]
 selected_train_labels = train_labels[random_indices_train]
 
@@ -58,7 +56,7 @@ flip_ratio = 0.5  # 50% flip ratio
 flipped_train_images, flipped_train_labels = random_flipped_img(selected_train_images, selected_train_labels, flip_ratio)
 
 # Select random 10 images from the test set
-random_indices_test = np.random.choice(len(test_images), 10, replace=False)
+random_indices_test = np.random.choice(len(test_images), test_num, replace=False)
 selected_test_images = test_images[random_indices_test]
 selected_test_labels = test_labels[random_indices_test]
 
@@ -66,25 +64,26 @@ selected_test_labels = test_labels[random_indices_test]
 flipped_test_images, flipped_test_labels = random_flipped_img(selected_test_images, selected_test_labels, flip_ratio)
 
 # Plot original train images
-plt.figure(figsize=(20, 4))
+plt.figure(figsize=(20, 20))
 for i, img in enumerate(selected_train_images):
-    plt.subplot(1, 10, i + 1)
+    plt.subplot(8, 10, i + 1)
     plt.imshow(img)
     plt.axis('off')
     plt.title(f'Label: {int(selected_train_labels[i])}')
 
 # Plot flipped train images
-plt.figure(figsize=(20, 4))
+plt.figure(figsize=(20, 20))
 for i, (img, label) in enumerate(zip(flipped_train_images, flipped_train_labels)):
-    plt.subplot(1, 10, i + 1)
+    plt.subplot(8, 10, i + 1)
     plt.imshow(img)
     plt.axis('off')
     plt.title(f'Label: {int(label)}')
 
+
 # Plot original test images
 plt.figure(figsize=(20, 4))
 for i, img in enumerate(selected_test_images):
-    plt.subplot(1, 10, i + 1)
+    plt.subplot(2, 10, i + 1)
     plt.imshow(img)
     plt.axis('off')
     plt.title(f'Label: {int(selected_test_labels[i])}')
@@ -92,7 +91,7 @@ for i, img in enumerate(selected_test_images):
 # Plot flipped test images
 plt.figure(figsize=(20, 4))
 for i, (img, label) in enumerate(zip(flipped_test_images, flipped_test_labels)):
-    plt.subplot(1, 10, i + 1)
+    plt.subplot(2, 10, i + 1)
     plt.imshow(img)
     plt.axis('off')
     plt.title(f'Label: {int(label)}')
@@ -115,10 +114,15 @@ test_labels = np.array(flipped_test_labels)
 # Resize images
 train_images_resized = resize_images(train_images)
 test_images_resized = resize_images(test_images)
-
-# Define model
+input_shape = train_images_resized[0].shape
+# Define CNN model
 model = tf.keras.Sequential([
-    tf.keras.Input(shape=(28, 28, 3)),
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D((2, 2)),
     tf.keras.layers.Flatten(),
     tf.keras.layers.Dense(128, activation='relu'),
     tf.keras.layers.Dense(10, activation='softmax')
@@ -133,13 +137,41 @@ model.compile(optimizer='adam',
 history = model.fit(
     train_images_resized,
     train_labels,
-    epochs=10,
+    epochs=50,
     validation_data=(test_images_resized, test_labels)
 )
 
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
+
+# Define function to resize images
+def resize_images(images):
+    resized_images = tf.image.resize(images, (28, 28))
+    return resized_images
+
+# Resize images
+train_images_resized = resize_images(flipped_train_images)
+test_images_resized = resize_images(flipped_test_images)
+
+# Flatten images for decision tree model
+train_images_flattened = tf.reshape(train_images_resized, (train_images_resized.shape[0], -1))
+test_images_flattened = tf.reshape(test_images_resized, (test_images_resized.shape[0], -1))
+
+# Train decision tree model
+decision_tree_model = DecisionTreeClassifier()
+decision_tree_model.fit(train_images_flattened, flipped_train_labels)
+
+# Evaluate decision tree model
+decision_tree_accuracy = decision_tree_model.score(test_images_flattened, flipped_test_labels)
+print("Decision Tree Accuracy:", decision_tree_accuracy)
+
+# Make predictions on test images using decision tree
+decision_tree_predictions = decision_tree_model.predict(test_images_flattened)
+print("Decision Tree Predictions:", decision_tree_predictions)
 
 # Make predictions on n test images
-num_images_to_predict = 3
+num_images_to_predict = 20
 predicted_labels = []
 
 # Resize test images
